@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 IMAP_USER = os.getenv("hari.kumar@contourasset.com")  # your email: hari.kumar@contourasset.com
-IMAP_PASS = os.getenv("Philly2016$$$")  # app password or account password
+IMAP_PASS = os.getenv("IMAP_PASS")  # app password or account password
 IMAP_SERVER = os.getenv("IMAP_SERVER", "outlook.office365.com")
 SHARED_MAILBOX = os.getenv("SHARED_MAILBOX", "pricetargets@contourasset.com")  # e.g. pricetargets@contourasset.com
 

@@ -1,6 +1,5 @@
 import os
 import re
-import requests
 import pandas as pd
 import imaplib
 import email
@@ -11,49 +10,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TENANT = os.getenv("TENANT_ID")
-CLIENT = os.getenv("CLIENT_ID")
-SECRET = os.getenv("CLIENT_SECRET")
-MAILBOX = os.getenv("MAILBOX")
 IMAP_USER = os.getenv("IMAP_USER")
 IMAP_PASS = os.getenv("IMAP_PASS")
 IMAP_SERVER = os.getenv("IMAP_SERVER", "outlook.office365.com")
-
-FILE_ID = "YOUR_SHAREPOINT_FILE_ID"
-GRAPH = "https://graph.microsoft.com/v1.0"
-
-
-# -----------------------
-# AUTH
-# -----------------------
-def token():
-    # Keep MSAL token helper available if Graph access is still desired
-    from msal import ConfidentialClientApplication
-
-    app = ConfidentialClientApplication(
-        CLIENT,
-        authority=f"https://login.microsoftonline.com/{TENANT}",
-        client_credential=SECRET,
-    )
-    result = app.acquire_token_for_client(
-        scopes=["https://graph.microsoft.com/.default"]
-    )
-    return result["access_token"]
 
 
 # -----------------------
 # EMAIL FETCH
 # -----------------------
-def get_emails(token):
-    headers = {"Authorization": f"Bearer {token}"}
-    url = (
-        f"{GRAPH}/users/{MAILBOX}/mailFolders/inbox/messages"
-        f"?$top=25&$select=subject,receivedDateTime,body"
-    )
-    r = requests.get(url, headers=headers)
-    return r.json()["value"]
-
-
 def _decode_mime_words(value):
     if not value:
         return ""
@@ -168,25 +132,6 @@ def extract_targets(text):
 
 
 # -----------------------
-# EXCEL
-# -----------------------
-def download_excel(token):
-    headers = {"Authorization": f"Bearer {token}"}
-    url = f"{GRAPH}/me/drive/items/{FILE_ID}/content"
-    r = requests.get(url, headers=headers)
-    with open("targets.xlsx", "wb") as f:
-        f.write(r.content)
-
-
-def upload_excel(token):
-    headers = {"Authorization": f"Bearer {token}"}
-    with open("targets.xlsx", "rb") as f:
-        data = f.read()
-    url = f"{GRAPH}/me/drive/items/{FILE_ID}/content"
-    requests.put(url, headers=headers, data=data)
-
-
-# -----------------------
 # UPDATE TABLE
 # -----------------------
 def update_excel(row):
@@ -209,38 +154,23 @@ def update_excel(row):
 # MAIN
 # -----------------------
 def run():
-    # Determine email source: prefer IMAP if credentials provided
-    emails = []
-    t = None
+    if not IMAP_USER or not IMAP_PASS:
+        raise RuntimeError("IMAP_USER and IMAP_PASS must be set in .env")
 
-    if IMAP_USER and IMAP_PASS:
-        emails = get_emails_imap(IMAP_USER, IMAP_PASS)
-        use_graph_for_files = False
-    else:
-        t = token()
-        emails = get_emails(t)
-        use_graph_for_files = True
+    emails = get_emails_imap(IMAP_USER, IMAP_PASS)
 
-    # Excel file: if FILE_ID left as placeholder, operate on local targets.xlsx
-    use_graph_for_files = use_graph_for_files and (
-        FILE_ID and FILE_ID != "YOUR_SHAREPOINT_FILE_ID"
-    )
-
-    if use_graph_for_files:
-        download_excel(t)
-    else:
-        # ensure a local file exists
-        if not os.path.exists("targets.xlsx"):
-            df = pd.DataFrame(
-                columns=[
-                    "BeginDate",
-                    "EndDate",
-                    "Issuer",
-                    "Upside Price Target",
-                    "Downside Price Target",
-                ]
-            )
-            df.to_excel("targets.xlsx", index=False)
+    # ensure a local file exists
+    if not os.path.exists("targets.xlsx"):
+        df = pd.DataFrame(
+            columns=[
+                "BeginDate",
+                "EndDate",
+                "Issuer",
+                "Upside Price Target",
+                "Downside Price Target",
+            ]
+        )
+        df.to_excel("targets.xlsx", index=False)
 
     for mail in emails:
         subject = mail["subject"]
@@ -262,9 +192,6 @@ def run():
             "Downside Price Target": downside,
         }
         update_excel(row)
-
-    if use_graph_for_files:
-        upload_excel(t)
 
 
 if __name__ == "__main__":

@@ -10,9 +10,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-IMAP_USER = os.getenv("IMAP_USER")
-IMAP_PASS = os.getenv("IMAP_PASS")
+IMAP_USER = os.getenv("IMAP_USER")  # your email: hari.kumar@contourasset.com
+IMAP_PASS = os.getenv("IMAP_PASS")  # app password or account password
 IMAP_SERVER = os.getenv("IMAP_SERVER", "outlook.office365.com")
+SHARED_MAILBOX = os.getenv("SHARED_MAILBOX", "")  # e.g. pricetargets@contourasset.com
 
 
 # -----------------------
@@ -157,7 +158,12 @@ def run():
     if not IMAP_USER or not IMAP_PASS:
         raise RuntimeError("IMAP_USER and IMAP_PASS must be set in .env")
 
-    emails = get_emails_imap(IMAP_USER, IMAP_PASS)
+    # For shared mailboxes in Office 365, login as user\shared_mailbox
+    login_user = IMAP_USER
+    if SHARED_MAILBOX:
+        login_user = f"{IMAP_USER}\\{SHARED_MAILBOX}"
+
+    emails = get_emails_imap(login_user, IMAP_PASS)
 
     # ensure a local file exists
     if not os.path.exists("targets.xlsx"):
